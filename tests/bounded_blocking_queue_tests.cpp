@@ -1,0 +1,81 @@
+#include <gtest/gtest.h>
+#include <optional>
+#include <stdexcept>
+
+#include "BoundedBlockingQueue.h"
+
+
+TEST(QueueTest, PushThenPopReturnsSameValue) {
+    BoundedBlockingQueue<int> q{5};
+
+    ASSERT_TRUE(q.push(42));  // push
+
+    auto item = q.pop();  // pop
+    ASSERT_TRUE(item.has_value());
+
+    EXPECT_EQ(item.value(), 42);
+}
+
+TEST(QueueTest, PreservesFIFOOrder) {
+    BoundedBlockingQueue<char> q{5};
+
+    ASSERT_TRUE(q.push('A'));  // push in order
+    ASSERT_TRUE(q.push('B'));
+    ASSERT_TRUE(q.push('C'));
+
+    auto item_1 = q.pop();  // pop in order
+    ASSERT_TRUE(item_1.has_value());
+    EXPECT_EQ(item_1.value(), 'A');
+    auto item_2 = q.pop();
+    ASSERT_TRUE(item_2.has_value());
+    EXPECT_EQ(item_2.value(), 'B');
+    auto item_3 = q.pop();
+    ASSERT_TRUE(item_3.has_value());
+    EXPECT_EQ(item_3.value(), 'C');
+}
+
+TEST(QueueTest, PushAfterCloseReturnsFalse) {
+    BoundedBlockingQueue<int> q{1};
+    q.close();  // close queue
+
+    EXPECT_FALSE(q.push(10));
+}
+
+TEST(QueueTest, CloseThenPopEmptyReturnsNullopt) {
+    BoundedBlockingQueue<int> q{1};
+
+    q.close();  // close queue
+
+    EXPECT_EQ(q.pop(), std::nullopt);  // close && empty returns nullopt
+}
+
+TEST(QueueTest, CloseStillDrainsExistingItems) {
+    BoundedBlockingQueue<char> q{3};
+    ASSERT_TRUE(q.push('A'));
+    ASSERT_TRUE(q.push('B'));
+
+    q.close();  // close queue with items left
+
+
+    EXPECT_EQ(q.pop(), 'A');  // start to drain
+    EXPECT_EQ(q.pop(), 'B');
+    EXPECT_EQ(q.pop(), std::nullopt);  // verify close && empty
+}
+
+TEST(QueueTest, CloseIsIdempotent) {
+    BoundedBlockingQueue<char> q{3};
+    ASSERT_TRUE(q.push('A'));
+    ASSERT_TRUE(q.push('B'));
+    q.close();
+
+    q.close();  // double close
+
+    EXPECT_FALSE(q.push('C'));  // verify still normal
+    EXPECT_EQ(q.pop(), 'A');
+    EXPECT_EQ(q.pop(), 'B');
+    EXPECT_EQ(q.pop(), std::nullopt);
+}
+
+TEST(QueueTest, ZeroCapacityIsRejected) {
+    EXPECT_THROW(BoundedBlockingQueue<int>{0}, std::invalid_argument);
+}
