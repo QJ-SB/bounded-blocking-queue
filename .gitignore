@@ -1,0 +1,7 @@
+# compiled object files
+*.o
+*.out
+build*/
+
+# IDE personal settings
+.vscode/
