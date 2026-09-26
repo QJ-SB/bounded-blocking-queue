@@ -1,0 +1,54 @@
+# 基于LLVM风格定制(C++)
+BasedOnStyle: LLVM
+
+# ====== 缩进 ======
+IndentWidth: 4                  # 缩进4个空格
+TabWidth: 4                     # Tab等效4空格
+UseTab: Never                   # 禁用Tab，全用空格
+AccessModifierOffset: -4        # public/private 顶格写
+
+# ====== 空格 ======
+SpaceBeforeParens: ControlStatements        # if (1) 而非 if(1)  
+PointerAlignment: Left          # 指针贴近类型（int* a;）
+ReferenceAlignment: Left        # 引用贴近类型（int& a;）
+
+# ====== 大(花)括号风格：（Attach 跟行）======
+BreakBeforeBraces: Attach       #  "void func() {" 而不是换行
+
+# ====== 换行/长度 ======
+ColumnLimit: 80                # 单行最长80字符
+MaxEmptyLinesToKeep: 2          # 最多保留2个空行
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+
+# ====== 注释 ======
+SpacesBeforeTrailingComments: 2 # 注释前空2格
+AlignTrailingComments: true     # 行尾注释自动对齐
+SpacesInLineCommentPrefix:
+  Minimum: 1                    # // 后至少保留1个空格
+  Maximum: -1                   # 不强行压缩多个空格，保留列表/缩进类注释
+
+# ====== 命名空间 ======
+NamespaceIndentation: None      # 命名空间内代码不缩进
+
+# ====== 头文件排序 ======
+IncludeBlocks: Regroup      # 按下面规则重组（不会把所有include堆一起）
+# "#include..." 按优先级:
+IncludeCategories:
+  # 👉 优先级 1：C++ 标准库（以 < 开头，包含字母的，比如 <vector> <string> <iostream>）
+  - Regex: '^<[a-zA-Z].*>'
+    Priority: 1
+
+  # 👉 优先级 2：C 标准库（以 <c 开头，或者带 .h 的系统C库，比如 <cstdio> <cmath> <stdint.h>）
+  - Regex: '^<c.*>'
+    Priority: 2
+  - Regex: '^<.*\.h>'
+    Priority: 2
+
+  # 👉 优先级 3：第三方库（以 < 开头，但不是标准库，比如 <boost/> <grpcpp/> <mysql.h>）
+  - Regex: '^<.*>'
+    Priority: 3
+
+  # 👉 优先级 4：自己写的头文件（以 " 开头，剩下的都是自己的，放最后）
+  - Regex: '^".*"'
+    Priority: 4
