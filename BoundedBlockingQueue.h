@@ -5,10 +5,16 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <stdexcept>
 
 template <typename T> class BoundedBlockingQueue {
 public:
-    explicit BoundedBlockingQueue(std::size_t capacity) : capacity_(capacity) {}
+    explicit BoundedBlockingQueue(std::size_t capacity) : capacity_(capacity) {
+        if (capacity == 0) {
+            throw std::invalid_argument(
+                "Invalid argument: the capacity must be greater than 0.");
+        }
+    }
 
     // false => queue has been closed
     bool push(T item);
@@ -59,7 +65,7 @@ template <typename T> inline std::optional<T> BoundedBlockingQueue<T>::pop() {
         return !buffer_.empty() || closed_;
     });  // consumer checks predicate
     if (buffer_.empty()) {
-        return std::nullopt;  // queue is "closed && empty
+        return std::nullopt;  // queue is "closed && empty"
                               // (no more items to pop)
     }
 
