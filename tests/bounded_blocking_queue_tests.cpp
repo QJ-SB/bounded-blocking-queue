@@ -1,9 +1,17 @@
+#include <chrono>
+#include <future>
 #include <gtest/gtest.h>
 #include <optional>
 #include <stdexcept>
+#include <thread>
+#include <utility>
 
 #include "BoundedBlockingQueue.h"
 
+
+//==============================================================================
+// Queue test
+//==============================================================================
 
 TEST(QueueTest, PushThenPopReturnsSameValue) {
     BoundedBlockingQueue<int> q{5};
@@ -78,4 +86,68 @@ TEST(QueueTest, CloseIsIdempotent) {
 
 TEST(QueueTest, ZeroCapacityIsRejected) {
     EXPECT_THROW(BoundedBlockingQueue<int>{0}, std::invalid_argument);
+}
+
+
+//==============================================================================
+// Thread test
+//==============================================================================
+TEST(QueueTest, PopBlocksUntilItemIsPushed) {
+    // Setup:
+    BoundedBlockingQueue<int> q{1};
+    std::promise<void> started_promise;  // signal: about to call pop()
+    std::future<void> started_future = started_promise.get_future();
+    std::promise<std::optional<int>>
+        result_promise;  // publishes the result after pop() returns
+    std::future<std::optional<int>> result_future = result_promise.get_future();
+
+    // Start consumer:
+    std::thread consumer{[&q, &started_promise, &result_promise] {
+        started_promise
+            .set_value();  // Signal that the consumer is about to call pop()
+        auto item = q.pop();
+        result_promise.set_value(
+            std::move(item));  // publish pop() completion and result
+    }};
+
+    // Verify pre-wait state:
+    auto pre_wait_status =
+        started_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_wait_status == std::future_status::timeout) {
+        q.close();        // unblock consumer for cleanup
+        consumer.join();  // Cleanup: resolve consumer thread lifetime
+        FAIL() << "consumer did not reach the pop() checkpoint";
+    }
+
+    // Verify pre-push state:
+    auto pre_push_status =
+        result_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_push_status == std::future_status::ready) {
+        consumer.join();
+        FAIL() << "pop() already happened before push(42)";
+    }
+
+    // Trigger push:
+    const bool pushed = q.push(42);
+    if (!pushed) {
+        q.close();
+        consumer.join();
+        FAIL() << "push(42) unexpectedly failed";
+    }
+
+    // Wait for pop() completion (give more time):
+    auto after_push_status = result_future.wait_for(std::chrono::seconds(1));
+
+    // Verify post-push completion:
+    if (after_push_status == std::future_status::timeout) {
+        q.close();
+        consumer.join();
+        FAIL() << "pop() did not complete after push(42)";
+    } else if (after_push_status == std::future_status::ready) {
+        consumer.join();  // Cleanup: resolve consumer thread lifetime first
+        auto result = result_future.get();
+        ASSERT_TRUE(result.has_value());  // Verify result:
+        EXPECT_EQ(result.value(),
+                  42);  // Consumer successfully popped & returned
+    }
 }
