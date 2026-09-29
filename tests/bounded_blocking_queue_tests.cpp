@@ -114,7 +114,7 @@ TEST(QueueTest, PopBlocksUntilItemIsPushed) {
     auto pre_wait_status =
         started_future.wait_for(std::chrono::milliseconds(100));
     if (pre_wait_status == std::future_status::timeout) {
-        q.close();        // unblock consumer for cleanup
+        q.close();        // ensure consumer has a termination path!!!
         consumer.join();  // Cleanup: resolve consumer thread lifetime
         FAIL() << "consumer did not reach the pop() checkpoint";
     }
@@ -149,5 +149,68 @@ TEST(QueueTest, PopBlocksUntilItemIsPushed) {
         ASSERT_TRUE(result.has_value());  // Verify result:
         EXPECT_EQ(result.value(),
                   42);  // Consumer successfully popped & returned
+    }
+}
+
+TEST(QueueTest, PushBlocksUntilSpaceIsAvailable) {
+    // Setup:
+    BoundedBlockingQueue<int> q{1};
+    ASSERT_TRUE(q.push(42));
+    std::promise<void> started_promise;
+    std::future<void> started_future = started_promise.get_future();
+    std::promise<bool> result_promise;
+    std::future<bool> result_future = result_promise.get_future();
+
+    // Start producer:
+    std::thread producer{[&q, &started_promise, &result_promise] {
+        started_promise.set_value();
+        const bool pushed = q.push(43);
+        result_promise.set_value(pushed);
+    }};
+
+    // Verify pre-wait state:
+    auto pre_wait_status =
+        started_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_wait_status == std::future_status::timeout) {
+        q.close();
+        producer.join();
+        FAIL() << "producer did not reach the push(43) checkpoint";
+    }
+
+    // Verify pre-pop state:
+    auto pre_pop_status =
+        result_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_pop_status == std::future_status::ready) {
+        producer.join();
+        FAIL() << "push(43) completed before pop() made space available";
+    }
+
+    // Trigger pop:
+    auto item = q.pop();
+    if (!item.has_value()) {
+        q.close();
+        producer.join();
+        FAIL() << "pop() unexpectedly returned nullopt";
+    }
+    EXPECT_EQ(item.value(), 42);
+
+    // Wait for push() completion (give more time):
+    auto after_pop_status = result_future.wait_for(std::chrono::seconds(1));
+
+    // Verify post-pop completion:
+    if (after_pop_status == std::future_status::timeout) {
+        q.close();
+        producer.join();
+        FAIL() << "push(43) did not complete after pop()";
+    } else if (after_pop_status == std::future_status::ready) {
+        producer.join();
+        ASSERT_TRUE(result_future.get());
+
+        // establish a bounded termination path for final verification:
+        q.close();
+
+        auto committed_item = q.pop();
+        ASSERT_TRUE(committed_item.has_value());
+        EXPECT_EQ(committed_item.value(), 43);
     }
 }
