@@ -41,7 +41,7 @@ private:
     std::condition_variable not_full_cv_;
 };
 
-template <typename T> inline bool BoundedBlockingQueue<T>::push(T item) {
+template <typename T> bool BoundedBlockingQueue<T>::push(T item) {
     std::unique_lock<std::mutex> lock(mutex_);  // need flexible
 
     not_full_cv_.wait(lock, [this] {
@@ -58,7 +58,7 @@ template <typename T> inline bool BoundedBlockingQueue<T>::push(T item) {
     return true;
 }
 
-template <typename T> inline std::optional<T> BoundedBlockingQueue<T>::pop() {
+template <typename T> std::optional<T> BoundedBlockingQueue<T>::pop() {
     std::unique_lock<std::mutex> lock(mutex_);  // need flexible
 
     not_empty_cv_.wait(lock, [this] {
@@ -77,7 +77,7 @@ template <typename T> inline std::optional<T> BoundedBlockingQueue<T>::pop() {
     return item;
 }
 
-template <typename T> inline void BoundedBlockingQueue<T>::close() {
+template <typename T> void BoundedBlockingQueue<T>::close() {
     {
         std::lock_guard<std::mutex> lock(mutex_);  // simple fixed scope
         if (closed_) {                             // idempotent
