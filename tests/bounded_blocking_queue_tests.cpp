@@ -127,7 +127,7 @@ TEST(QueueTest, PopBlocksUntilItemIsPushed) {
         FAIL() << "pop() already happened before push(42)";
     }
 
-    // Trigger push:
+    // Trigger push(42):
     const bool pushed = q.push(42);
     if (!pushed) {
         q.close();
@@ -185,7 +185,7 @@ TEST(QueueTest, PushBlocksUntilSpaceIsAvailable) {
         FAIL() << "push(43) completed before pop() made space available";
     }
 
-    // Trigger pop:
+    // Trigger pop():
     auto item = q.pop();
     if (!item.has_value()) {
         q.close();
@@ -212,5 +212,121 @@ TEST(QueueTest, PushBlocksUntilSpaceIsAvailable) {
         auto committed_item = q.pop();
         ASSERT_TRUE(committed_item.has_value());
         EXPECT_EQ(committed_item.value(), 43);
+    }
+}
+
+TEST(QueueTest, CloseWakesBlockedConsumer) {
+    // Setup:
+    BoundedBlockingQueue<int> q{1};
+    std::promise<void> started_promise;
+    std::future<void> started_future = started_promise.get_future();
+    std::promise<std::optional<int>> result_promise;
+    std::future<std::optional<int>> result_future = result_promise.get_future();
+
+    // Start consumer:
+    std::thread consumer{[&q, &started_promise, &result_promise] {
+        started_promise.set_value();
+        auto item = q.pop();
+        result_promise.set_value(std::move(item));
+    }};
+
+    // Verify pre-wait status:
+    auto pre_wait_status =
+        started_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_wait_status == std::future_status::timeout) {
+        const bool pushed =
+            q.push(43);  // substitute for close() to establish termination path
+        EXPECT_TRUE(pushed);
+        consumer.join();
+        FAIL() << "consumer did not reach the pop() checkpoint";
+    }
+
+    // Verify pre_close status:
+    auto pre_close_status =
+        result_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_close_status == std::future_status::ready) {
+        consumer.join();
+        FAIL() << "pop() completed before close() transitioned the queue to "
+                  "closed";
+    }
+
+    // Trigger close()
+    q.close();
+
+    // Wait for pop() completion after close (give more time):
+    auto after_close_status = result_future.wait_for(std::chrono::seconds(1));
+
+    // Verify post-close completion:
+    if (after_close_status == std::future_status::timeout) {
+        // No independent public-API rescue path remains after close().
+        // This failure mode requires an external test timeout.
+        consumer.join();
+        FAIL() << "pop() did not complete after close()";
+    } else if (after_close_status == std::future_status::ready) {
+        consumer.join();
+        auto ret = result_future.get();
+        ASSERT_FALSE(ret.has_value());
+    }
+}
+
+TEST(QueueTest, CloseWakesBlockedProducer) {
+    // Setup:
+    BoundedBlockingQueue<int> q{1};
+    ASSERT_TRUE(q.push(42));
+    std::promise<void> started_promise;
+    std::future<void> started_future = started_promise.get_future();
+    std::promise<bool> result_promise;
+    std::future<bool> result_future = result_promise.get_future();
+
+    // Start producer:
+    std::thread producer{[&q, &started_promise, &result_promise] {
+        started_promise.set_value();
+        const bool pushed = q.push(43);
+        result_promise.set_value(pushed);
+    }};
+
+    // Verify pre-wait status:
+    auto pre_wait_status =
+        started_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_wait_status == std::future_status::timeout) {
+        auto popped =
+            q.pop();  // substitute for close() to establish cleanup path
+        EXPECT_TRUE(popped.has_value());
+        if (popped.has_value()) {
+            EXPECT_EQ(popped.value(), 42);
+        }
+
+        producer.join();
+        FAIL() << "producer did not reach the push(43) checkpoint";
+    }
+
+    // Verify pre_close status:
+    auto pre_close_status =
+        result_future.wait_for(std::chrono::milliseconds(100));
+    if (pre_close_status == std::future_status::ready) {
+        producer.join();
+        FAIL() << "push(43) completed before close() turn queue to terminate";
+    }
+
+    // Trigger close()
+    q.close();
+
+    // Wait for push(43) completion after close (give more time):
+    auto after_close_status = result_future.wait_for(std::chrono::seconds(1));
+
+    // Verify post-close completion:
+    if (after_close_status == std::future_status::timeout) {
+        auto cleanup_item =
+            q.pop();  // substitute for close() to establish cleanup path
+        EXPECT_TRUE(cleanup_item.has_value());
+        if (cleanup_item.has_value()) {
+            EXPECT_EQ(cleanup_item.value(), 42);
+        }
+
+        producer.join();
+        FAIL() << "push(43) did not complete after close()";
+    } else if (after_close_status == std::future_status::ready) {
+        producer.join();
+        ASSERT_FALSE(result_future.get());
     }
 }
