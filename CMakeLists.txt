@@ -94,5 +94,9 @@ if(BUILD_TESTING)
 
     include(GoogleTest)
 
-    gtest_discover_tests(bounded_blocking_queue_tests)
+    gtest_discover_tests(
+    bounded_blocking_queue_tests
+    PROPERTIES
+    TIMEOUT 5
+)
 endif()
