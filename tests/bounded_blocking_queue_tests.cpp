@@ -441,7 +441,7 @@ TEST(QueueTest, MultiProducerMultiConsumerPreservesAllItems) {
     all_consumed.insert(all_consumed.end(), consumer_1_results.begin(),
                         consumer_1_results.end());
 
-    // Verify raw consumed count == kTotalItems:
+    // Verify raw consumed count == kTotalItems (avoid UB):
     ASSERT_EQ(all_consumed.size(), kTotalItems);
 
     // Sort all_consumed:
