@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <future>
 #include <gtest/gtest.h>
@@ -5,6 +6,7 @@
 #include <stdexcept>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "BoundedBlockingQueue.h"
 
@@ -328,5 +330,125 @@ TEST(QueueTest, CloseWakesBlockedProducer) {
     } else if (after_close_status == std::future_status::ready) {
         producer.join();
         ASSERT_FALSE(result_future.get());
+    }
+}
+
+TEST(QueueTest, MultiProducerMultiConsumerPreservesAllItems) {
+    // Setup:
+    constexpr int kItemsPerProducer = 1000;
+    constexpr int kProducerCount = 2;
+    constexpr int kTotalItems = kItemsPerProducer * kProducerCount;
+    BoundedBlockingQueue<int> q{4};
+
+    // Producer-local outcome (observable flag):
+    bool producer_0_success = true;
+    bool producer_1_success = true;
+
+    // Consumer-local aggregation (TotalItems' collector):
+    std::vector<int> consumer_0_results;
+    std::vector<int> consumer_1_results;
+
+
+    // Start consumers:
+    std::thread consumer_0{[&q, &consumer_0_results] {
+        while (true) {
+            auto item = q.pop();
+            if (item.has_value()) {
+                consumer_0_results.push_back(item.value());
+            } else
+                break;
+        }
+    }};
+
+    std::thread consumer_1{[&q, &consumer_1_results] {
+        while (true) {
+            auto item = q.pop();
+            if (item.has_value()) {
+                consumer_1_results.push_back(item.value());
+            } else
+                break;
+        }
+    }};
+
+
+    // Start producers:
+    std::thread producer_0{[&q, &producer_0_success] {
+        for (int item = 0; item < kItemsPerProducer; ++item) {
+            const bool pushed = q.push(item);
+            if (!pushed) {
+                producer_0_success =
+                    false;  // record failure in THIS producer's local outcome
+                return;
+            }
+        }
+    }};
+
+    std::thread producer_1{[&q, &producer_1_success] {
+        for (int item = kItemsPerProducer; item < kTotalItems; ++item) {
+            const bool pushed = q.push(item);
+            if (!pushed) {
+                producer_1_success = false;
+                return;
+            }
+        }
+    }};
+
+
+    // =========================================================================
+    // Phase boundary 1:
+    // Production must be completely finished before close().
+    // =========================================================================
+    producer_0.join();
+    producer_1.join();
+
+    // Verify both producer-local outcomes before moving to close() phase
+    if (!producer_0_success || !producer_1_success) {
+        q.close();
+        consumer_0.join();
+        consumer_1.join();
+        FAIL()
+            << "producers unexpectedly failed to push before calling close()";
+    }
+
+
+    // =========================================================================
+    // Phase transition:
+    // no more production -> closed/draining
+    // =========================================================================
+    q.close();
+
+
+    // =========================================================================
+    // Phase boundary 2:
+    // Consumers should drain all committed items, observe nullopt, and
+    // terminate.
+    // =========================================================================
+    consumer_0.join();
+    consumer_1.join();
+
+
+    // =========================================================================
+    // Main-thread verification:
+    //
+    // After join(), Main can safely merge & sort all consumer-local vectors.
+    // =========================================================================
+    std::vector<int> all_consumed;
+    all_consumed.reserve(kTotalItems);
+
+    // Merge consumer_0_results + consumer_1_results:
+    all_consumed.insert(all_consumed.end(), consumer_0_results.begin(),
+                        consumer_0_results.end());
+    all_consumed.insert(all_consumed.end(), consumer_1_results.begin(),
+                        consumer_1_results.end());
+
+    // Verify raw consumed count == kTotalItems:
+    ASSERT_EQ(all_consumed.size(), kTotalItems);
+
+    // Sort all_consumed:
+    std::sort(all_consumed.begin(), all_consumed.end());
+
+    // Verify fainal results:
+    for (int i = 0; i < kTotalItems; ++i) {
+        EXPECT_EQ(all_consumed[i], i);
     }
 }
