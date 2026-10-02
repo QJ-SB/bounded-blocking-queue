@@ -11,15 +11,31 @@ project(
 # ==============================================================================
 
 option(
-    ENABLE_SANITIZERS
+    ENABLE_ASAN_UBSAN
     "Enable AddressSanitizer and UndefinedBehaviorSanitizer"
     OFF
 )
 
+option(
+    ENABLE_TSAN
+    "Enable ThreadSanitizer"
+    OFF
+)
+
+## Reject incompatible sanitizer configuration.
+if(ENABLE_ASAN_UBSAN AND ENABLE_TSAN)
+    message(
+        FATAL_ERROR
+        "ENABLE_ASAN_UBSAN and ENABLE_TSAN cannot be enabled together."
+    )
+endif()
+
+
 # INTERFACE-target used only to carry sanitizer usage requirements.
 add_library(sanitizers INTERFACE)
 
-if(ENABLE_SANITIZERS)
+## Asan + UBsan
+if(ENABLE_ASAN_UBSAN)
     target_compile_options(
         sanitizers
         INTERFACE
@@ -32,6 +48,23 @@ if(ENABLE_SANITIZERS)
         sanitizers
         INTERFACE
         -fsanitize=address,undefined
+    )
+endif()
+
+## Tsan
+if(ENABLE_TSAN)
+    target_compile_options(
+        sanitizers
+        INTERFACE
+        -fsanitize=thread
+        -fno-omit-frame-pointer
+        -g
+    )
+
+    target_link_options(
+        sanitizers
+        INTERFACE
+        -fsanitize=thread
     )
 endif()
 
