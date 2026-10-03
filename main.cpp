@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -10,7 +11,7 @@
 #include "TradingEvent.h"
 
 constexpr std::size_t kQueueCapacity = 4;
-constexpr std::uint64_t kEventCount = 500;
+constexpr std::uint64_t kEventCount = 50'000;
 
 constexpr std::int64_t kExpectedPayloadSum =
     static_cast<std::int64_t>((kEventCount * (kEventCount + 1)) / 2);
@@ -25,6 +26,11 @@ int main() {
     BoundedBlockingQueue<TradingEvent> queue{kQueueCapacity};
     ConsumerResult consumer_result;  // Consumer-side observable result.
     bool producer_success{true};     // Whether all intended pushes succeeded.
+
+
+    // Start time measurement:
+    auto t_start = std::chrono::steady_clock::now();
+
 
     // Consumer thread:
     std::thread consumer{[&queue, &consumer_result] {
@@ -72,6 +78,17 @@ int main() {
 
     // Wait until the consumer has drained the queue and terminated.
     consumer.join();
+
+
+    // End time measurement:
+    auto t_end = std::chrono::steady_clock::now();
+
+    // Calculate measurement result:
+    const std::chrono::duration<double> elapsed = t_end - t_start;
+    std::cout << "Time spent: " << elapsed.count() << " s\n";
+
+    const double throughput = kEventCount / elapsed.count();
+    std::cout << "Throughput: " << throughput << " events/s\n";
 
     // Final verification: count.
     if (consumer_result.sequences.size() != kEventCount) {
