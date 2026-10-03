@@ -22,7 +22,7 @@ option(
     OFF
 )
 
-## Reject incompatible sanitizer configuration.
+## Reject incompatible sanitizer configuration
 if(ENABLE_ASAN_UBSAN AND ENABLE_TSAN)
     message(
         FATAL_ERROR
@@ -31,7 +31,7 @@ if(ENABLE_ASAN_UBSAN AND ENABLE_TSAN)
 endif()
 
 
-# INTERFACE-target used only to carry sanitizer usage requirements.
+# INTERFACE-target used only to carry sanitizer usage requirements
 add_library(sanitizers INTERFACE)
 
 ## Asan + UBsan
@@ -95,6 +95,17 @@ target_link_libraries(
 # Main executable
 # ==============================================================================
 
+add_executable(
+    events_pipeline
+    main.cpp
+)
+
+target_link_libraries(
+    events_pipeline
+    PRIVATE
+    bounded_blocking_queue
+)
+
 
 # ==============================================================================
 # Tests
@@ -103,6 +114,20 @@ target_link_libraries(
 include(CTest)
 
 if(BUILD_TESTING)
+
+    add_test(
+        NAME EventsPipeline
+        COMMAND events_pipeline
+    )
+
+    set_tests_properties(
+        EventsPipeline
+        PROPERTIES
+        TIMEOUT 5
+    )
+
+
+    # gtest
     include(FetchContent)
 
     FetchContent_Declare(
