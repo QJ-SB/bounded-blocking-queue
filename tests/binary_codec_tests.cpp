@@ -67,7 +67,7 @@ TEST(CodecTest, AppendThenReadU32RoundTrip) {
     // Setup:
     constexpr std::uint32_t value_1 = 0x01020304;
     constexpr std::uint32_t value_2 = 0x05060708;
-    constexpr std::size_t bit_count = sizeof(std::uint32_t);
+    constexpr std::size_t byte_count = sizeof(std::uint32_t);
     std::vector<std::byte> buffer{};
     std::size_t offset{0};
 
@@ -78,8 +78,8 @@ TEST(CodecTest, AppendThenReadU32RoundTrip) {
     // Read & Verify:
     auto ret_1 = read_u32(buffer, offset);
     EXPECT_EQ(ret_1, value_1);
-    EXPECT_EQ(offset, bit_count);
+    EXPECT_EQ(offset, byte_count);
     auto ret_2 = read_u32(buffer, offset);
     EXPECT_EQ(ret_2, value_2);
-    EXPECT_EQ(offset, bit_count * 2);
+    EXPECT_EQ(offset, byte_count * 2);
 }
