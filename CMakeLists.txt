@@ -22,7 +22,7 @@ option(
     OFF
 )
 
-## Reject incompatible sanitizer configuration
+## Reject incompatible sanitizer configuration:
 if(ENABLE_ASAN_UBSAN AND ENABLE_TSAN)
     message(
         FATAL_ERROR
@@ -31,10 +31,13 @@ if(ENABLE_ASAN_UBSAN AND ENABLE_TSAN)
 endif()
 
 
-# INTERFACE-target used only to carry sanitizer usage requirements
-add_library(sanitizers INTERFACE)
+# INTERFACE-target used only to carry sanitizer usage requirements:
+add_library(
+    sanitizers
+    INTERFACE
+    )
 
-## Asan + UBsan
+## Asan + UBsan:
 if(ENABLE_ASAN_UBSAN)
     target_compile_options(
         sanitizers
@@ -51,7 +54,7 @@ if(ENABLE_ASAN_UBSAN)
     )
 endif()
 
-## Tsan
+## Tsan:
 if(ENABLE_TSAN)
     target_compile_options(
         sanitizers
@@ -73,6 +76,7 @@ endif()
 # Core library
 # ==============================================================================
 
+# BoundedBlockingQueue (Header-only):
 add_library(
     bounded_blocking_queue
     INTERFACE
@@ -84,9 +88,40 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+target_compile_features(
+    bounded_blocking_queue
+    INTERFACE
+    cxx_std_17
+)
+
 target_link_libraries(
     bounded_blocking_queue
     INTERFACE
+    sanitizers
+)
+
+# BinaryCodec (Compiled static library):
+add_library(
+    binary_codec
+    STATIC
+    binary_codec.cpp
+)
+
+target_include_directories(
+    binary_codec
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_features(
+    binary_codec
+    PUBLIC
+    cxx_std_17
+)
+
+target_link_libraries(
+    binary_codec
+    PUBLIC
     sanitizers
 )
 
@@ -111,10 +146,12 @@ target_link_libraries(
 # Tests
 # ==============================================================================
 
+# CTest:
 include(CTest)
 
 if(BUILD_TESTING)
 
+    # ctest:
     add_test(
         NAME EventsPipeline
         COMMAND events_pipeline
@@ -127,7 +164,7 @@ if(BUILD_TESTING)
     )
 
 
-    # gtest
+    # gtest:
     include(FetchContent)
 
     FetchContent_Declare(
@@ -138,6 +175,7 @@ if(BUILD_TESTING)
 
     FetchContent_MakeAvailable(googletest)
 
+    # BoundedBlockingQueueTests:
     add_executable(
         bounded_blocking_queue_tests
         tests/bounded_blocking_queue_tests.cpp
@@ -149,12 +187,30 @@ if(BUILD_TESTING)
         bounded_blocking_queue
         GTest::gtest_main
     )
+    
+    # BinaryCodec:
+    add_executable(
+        binary_codec_tests
+        tests/binary_codec_tests.cpp
+    )
 
+    target_link_libraries(
+        binary_codec_tests
+        PRIVATE
+        binary_codec
+        GTest::gtest_main
+    )
+
+
+    # Register gtest with ctest:
     include(GoogleTest)
 
     gtest_discover_tests(
     bounded_blocking_queue_tests
     PROPERTIES
     TIMEOUT 5
-)
+    )
+
+    gtest_discover_tests(binary_codec_tests)
+
 endif()
