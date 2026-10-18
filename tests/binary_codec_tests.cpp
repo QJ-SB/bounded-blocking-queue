@@ -7,7 +7,7 @@
 #include "binary_codec.h"
 
 // ======================= append_u32() / read_u32() ===========================
-TEST(CodecTest, AppendU32ProducesKnownWireBytes) {
+TEST(BinaryCodecTest, AppendU32ProducesKnownWireBytes) {
     // Setup:
     constexpr std::uint32_t value = 0x01020304;
     constexpr std::size_t byte_count = sizeof(std::uint32_t);
@@ -24,7 +24,7 @@ TEST(CodecTest, AppendU32ProducesKnownWireBytes) {
     EXPECT_EQ(buffer[3], std::byte{0x04});
 }
 
-TEST(CodecTest, ReadU32DecodesAndAdvancesOffset) {
+TEST(BinaryCodecTest, ReadU32DecodesAndAdvancesOffset) {
     // Setup (network byte order):
     std::vector<std::byte> buffer{std::byte{0x01}, std::byte{0x02},
                                   std::byte{0x03}, std::byte{0x04}};
@@ -38,7 +38,7 @@ TEST(CodecTest, ReadU32DecodesAndAdvancesOffset) {
     EXPECT_EQ(offset, sizeof(std::uint32_t));
 }
 
-TEST(CodecTest, ReadU32RejectsInsufficientBytes) {
+TEST(BinaryCodecTest, ReadU32RejectsInsufficientBytes) {
     // Setup:
     std::vector<std::byte> buffer{std::byte{0x01}, std::byte{0x02},
                                   std::byte{0x03}, std::byte{0x04},
@@ -50,7 +50,7 @@ TEST(CodecTest, ReadU32RejectsInsufficientBytes) {
     EXPECT_EQ(offset, 4);
 }
 
-TEST(CodecTest, ReadU32RejectsInvalidOffset) {
+TEST(BinaryCodecTest, ReadU32RejectsInvalidOffset) {
     // Setup:
     std::vector<std::byte> buffer{
         std::byte{0x01},
@@ -63,7 +63,7 @@ TEST(CodecTest, ReadU32RejectsInvalidOffset) {
     EXPECT_EQ(offset, 4);
 }
 
-TEST(CodecTest, AppendThenReadU32RoundTrip) {
+TEST(BinaryCodecTest, AppendThenReadU32RoundTrip) {
     // Setup:
     constexpr std::uint32_t value_1 = 0x01020304;
     constexpr std::uint32_t value_2 = 0x05060708;
@@ -85,7 +85,7 @@ TEST(CodecTest, AppendThenReadU32RoundTrip) {
 }
 
 // ======================= append_u16() / read_u16() ===========================
-TEST(CodecTest, AppendU16ProducesKnownWireBytes) {
+TEST(BinaryCodecTest, AppendU16ProducesKnownWireBytes) {
     // Setup:
     constexpr std::uint16_t value{0x0102};
     std::vector<std::byte> buffer;
@@ -99,7 +99,7 @@ TEST(CodecTest, AppendU16ProducesKnownWireBytes) {
     EXPECT_EQ(buffer[1], std::byte{0x02});
 }
 
-TEST(CodecTest, ReadU16DecodesAndAdvancesOffset) {
+TEST(BinaryCodecTest, ReadU16DecodesAndAdvancesOffset) {
     // Setup (network byte order):
     std::vector<std::byte> buffer{
         std::byte{0x01},
@@ -115,7 +115,7 @@ TEST(CodecTest, ReadU16DecodesAndAdvancesOffset) {
     EXPECT_EQ(offset, sizeof(std::uint16_t));
 }
 
-TEST(CodecTest, ReadU16RejectsInsufficientBytes) {
+TEST(BinaryCodecTest, ReadU16RejectsInsufficientBytes) {
     // Setup:
     std::vector<std::byte> buffer{std::byte{0x01}, std::byte{0x02}};
     std::size_t offset{1};
