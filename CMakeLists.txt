@@ -125,6 +125,32 @@ target_link_libraries(
     sanitizers
 )
 
+# TradingEventCodec (Compiled static library):
+add_library(
+    trading_event_codec
+    STATIC
+    trading_event_codec.cpp
+)
+
+target_include_directories(
+    trading_event_codec
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_features(
+    trading_event_codec
+    PUBLIC
+    cxx_std_17
+)
+
+target_link_libraries(
+    trading_event_codec
+    PRIVATE
+    binary_codec
+    PUBLIC
+    sanitizers
+)
 
 # ==============================================================================
 # Main executable
@@ -201,6 +227,19 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # TradingEventCodec:
+    add_executable(
+        trading_event_codec_tests
+        tests/trading_event_codec_tests.cpp
+    )
+
+    target_link_libraries(
+        trading_event_codec_tests
+        PRIVATE
+        trading_event_codec
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -212,5 +251,7 @@ if(BUILD_TESTING)
     )
 
     gtest_discover_tests(binary_codec_tests)
+
+    gtest_discover_tests(trading_event_codec_tests)
 
 endif()
