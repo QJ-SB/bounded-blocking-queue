@@ -5,3 +5,6 @@ build*/
 
 # IDE personal settings
 .vscode/
+
+# kilo code
+.kilo/
