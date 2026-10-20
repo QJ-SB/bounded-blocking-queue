@@ -8,44 +8,45 @@
 
 std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
                                                       std::size_t size) {
+    // Setup:
     std::vector<std::vector<std::byte>> completed_payloads;
 
-    // Append the incoming bytes to persistent storage.
+    // Append the incoming bytes to persistent storage:
     if (size != 0) {
         pending_bytes_.insert(pending_bytes_.end(), data, data + size);
     }
 
-    // Extract all currently available complete frames.
+    // Extract all currently available complete frames:
     while (true) {
-        // Wait for a complete 4-byte length prefix.
+        // Check complete 4-byte prefix (payload length):
         if (pending_bytes_.size() < frame_protocol::kLengthPrefixSize) {
             break;
         }
 
-        // Decode and validate the payload length.
+        // Decode prefix and validate the payload length:
         std::size_t offset = 0;
         auto payload_length = read_u32(pending_bytes_, offset);
-
         if (payload_length < frame_protocol::kMinPayloadSize ||
             payload_length > frame_protocol::kMaxPayloadSize) {
             throw std::runtime_error("Invalid payload length");
         }
 
-        // Stop parsing until the entire frame is available.
+        // Check if the entire frame is available:
         if (pending_bytes_.size() < offset + payload_length) {
             break;
         }
 
-        // Extract the complete payload.
+        // Extract the complete payload:
         std::vector<std::byte> payload(pending_bytes_.begin() + offset,
                                        pending_bytes_.begin() + offset +
                                            payload_length);
-
         completed_payloads.push_back(std::move(payload));
 
-        // Consume the entire frame, including its prefix.
+        // Consume the entire frame (including its prefix):
         pending_bytes_.erase(pending_bytes_.begin(),
                              pending_bytes_.begin() + offset + payload_length);
+
+        // Continue...
     }
 
     return completed_payloads;
