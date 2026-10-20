@@ -254,6 +254,21 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # FrameParser:
+    add_executable(
+        frame_parser_tests
+        tests/frame_parser_test.cpp
+        frame_parser.cpp
+        frame_encoder.cpp
+    )
+
+    target_link_libraries(
+        frame_parser_tests
+        PRIVATE
+        binary_codec
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -269,5 +284,7 @@ if(BUILD_TESTING)
     gtest_discover_tests(trading_event_codec_tests)
 
     gtest_discover_tests(frame_encoder_tests)
+
+    gtest_discover_tests(frame_parser_tests)
 
 endif()
