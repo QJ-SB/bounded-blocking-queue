@@ -18,7 +18,7 @@ std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
     // Extract all currently available complete frames.
     while (true) {
         // Wait for a complete 4-byte length prefix.
-        if (pending_bytes_.size() < 4) {
+        if (pending_bytes_.size() < frame_protocol::kLengthPrefixSize) {
             break;
         }
 
@@ -31,7 +31,7 @@ std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
             throw std::runtime_error("Invalid payload length");
         }
 
-        // Wait until the entire frame is available.
+        // Stop parsing until the entire frame is available.
         if (pending_bytes_.size() < offset + payload_length) {
             break;
         }
