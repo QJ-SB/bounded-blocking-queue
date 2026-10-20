@@ -240,6 +240,20 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # FrameEncoder:
+    add_executable(
+        frame_encoder_tests
+        tests/frame_encoder_test.cpp
+        frame_encoder.cpp
+    )
+
+    target_link_libraries(
+        frame_encoder_tests
+        PRIVATE
+        binary_codec
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -253,5 +267,7 @@ if(BUILD_TESTING)
     gtest_discover_tests(binary_codec_tests)
 
     gtest_discover_tests(trading_event_codec_tests)
+
+    gtest_discover_tests(frame_encoder_tests)
 
 endif()
