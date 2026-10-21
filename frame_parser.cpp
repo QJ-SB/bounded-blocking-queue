@@ -6,10 +6,14 @@
 #include "binary_codec.h"
 #include "frame_protocol.h"
 
-std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
-                                                      std::size_t size) {
+FeedResult FrameParser::feed(const std::byte* data, std::size_t size) {
+    // Check parser state:
+    if (state_ != State::Active) {
+        throw std::logic_error("FrameParser is not active");
+    }
+
     // Setup:
-    std::vector<std::vector<std::byte>> completed_payloads;
+    FeedResult result{};
 
     // Append the incoming bytes to persistent storage:
     if (size != 0) {
@@ -28,7 +32,9 @@ std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
         auto payload_length = read_u32(pending_bytes_, offset);
         if (payload_length < frame_protocol::kMinPayloadSize ||
             payload_length > frame_protocol::kMaxPayloadSize) {
-            throw std::runtime_error("Invalid payload length");
+            state_ = State::Failed;
+            result.protocol_error = FrameError::InvalidLength;
+            return result;
         }
 
         // Check if the entire frame is available:
@@ -40,7 +46,7 @@ std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
         std::vector<std::byte> payload(pending_bytes_.begin() + offset,
                                        pending_bytes_.begin() + offset +
                                            payload_length);
-        completed_payloads.push_back(std::move(payload));
+        result.completed_payloads.push_back(std::move(payload));
 
         // Consume the entire frame (including its prefix):
         pending_bytes_.erase(pending_bytes_.begin(),
@@ -49,11 +55,22 @@ std::vector<std::vector<std::byte>> FrameParser::feed(const std::byte* data,
         // Continue...
     }
 
-    return completed_payloads;
+    return result;
 }
 
-void FrameParser::finish() {
-    if (!pending_bytes_.empty()) {
-        throw std::runtime_error("Truncated frame at EOF");
+std::optional<FrameError> FrameParser::finish() {
+    // Inactive finsh:
+    if (state_ != State::Active) {
+        throw std::logic_error("FrameParser is not active");
     }
+
+    // Truncated finish:
+    if (!pending_bytes_.empty()) {
+        state_ = State::Failed;
+        return FrameError::TruncatedFrame;
+    }
+
+    // Normal finish:
+    state_ = State::Finished;
+    return std::nullopt;
 }
