@@ -8,6 +8,10 @@
 
 namespace {
 
+// ========================================================
+// Test Helpers
+// ========================================================
+
 std::vector<std::byte> payload_a() {
     return {
         std::byte{0x01}, std::byte{0x02}, std::byte{0x03}, std::byte{0x04},
@@ -39,7 +43,9 @@ std::vector<std::byte> payload_c() {
 }  // namespace
 
 
-// ========================= Group A — Normal Parsing ==========================
+// ========================================================
+// Group A — Normal Parsing
+// ========================================================
 TEST(FrameParserTest, ParsesCompleteFrame) {
     // Arrange:
     const std::vector<std::byte> expected_payload{
@@ -171,7 +177,9 @@ TEST(FrameParserTest, PreservesIncompleteTrailingFrame) {
 }
 
 
-// ========================= Group B — Protocol Error ==========================
+// ========================================================
+// Group B — Protocol Error
+// ========================================================
 TEST(FrameParserTest, RejectsTooShortLength) {
     // Arrange:
     const std::vector<std::byte> prefix{std::byte{0x00}, std::byte{0x00},
@@ -298,7 +306,9 @@ TEST(FrameParserTest, RejectsFragmentedInvalidHeader) {
 }
 
 
-// ========================= Group C — EOF / Lifecycle =========================
+// ========================================================
+// Group C — EOF / Lifecycle
+// ========================================================
 TEST(FrameParserTest, CleanEOF) {
     // Arrange:
     const auto expected_payload = payload_a();
