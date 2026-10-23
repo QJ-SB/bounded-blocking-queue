@@ -21,6 +21,7 @@ struct ConsumerResult {
     std::int64_t payload_sum{0};
 };
 
+
 int main() {
     // Setup:
     BoundedBlockingQueue<TradingEvent> queue{kQueueCapacity};

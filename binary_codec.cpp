@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <vector>
 
-
 void append_u32(std::vector<std::byte>& buffer, std::uint32_t value) {
     auto old_size = buffer.size();
 

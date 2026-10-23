@@ -11,7 +11,6 @@
 #include "TradingEvent.h"
 #include "binary_codec.h"
 
-
 std::vector<std::byte> encode_trading_event(const TradingEventMessage& event) {
     // setup:
     std::vector<std::byte> buffer{};
