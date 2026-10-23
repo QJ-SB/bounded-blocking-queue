@@ -100,7 +100,7 @@ target_link_libraries(
     sanitizers
 )
 
-# BinaryCodec (Compiled static library):
+# BinaryCodec:
 add_library(
     binary_codec
     STATIC
@@ -125,7 +125,7 @@ target_link_libraries(
     sanitizers
 )
 
-# TradingEventCodec (Compiled static library):
+# TradingEventCodec:
 add_library(
     trading_event_codec
     STATIC
@@ -149,6 +149,55 @@ target_link_libraries(
     PRIVATE
     binary_codec
     PUBLIC
+    sanitizers
+)
+
+# SocketFd:
+add_library(
+    socket_fd
+    STATIC
+    socket_fd.cpp
+)
+
+target_include_directories(
+    socket_fd
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_features(
+    socket_fd
+    PUBLIC
+    cxx_std_17
+)
+
+target_link_libraries(
+    socket_fd
+    PUBLIC
+    sanitizers
+)
+
+# send_all (Header-only):
+add_library(
+    send_all
+    INTERFACE
+)
+
+target_include_directories(
+    send_all
+    INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_features(
+    send_all
+    INTERFACE
+    cxx_std_17
+)
+
+target_link_libraries(
+    send_all
+    INTERFACE
     sanitizers
 )
 
@@ -269,6 +318,19 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # SocketFd:
+    add_executable(
+        socket_fd_tests
+        tests/socket_fd_test.cpp
+    )
+
+    target_link_libraries(
+        socket_fd_tests
+        PRIVATE
+        socket_fd
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -286,5 +348,7 @@ if(BUILD_TESTING)
     gtest_discover_tests(frame_encoder_tests)
 
     gtest_discover_tests(frame_parser_tests)
+
+    gtest_discover_tests(socket_fd_tests)
 
 endif()
