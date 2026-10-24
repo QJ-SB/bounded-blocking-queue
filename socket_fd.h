@@ -14,7 +14,7 @@ public:
     SocketFd(SocketFd&& other) noexcept;
     SocketFd& operator=(SocketFd&& other) noexcept;
 
-    int get() const noexcept;     // get the fd
+    int get() const noexcept;     // get the fd value
     bool valid() const noexcept;  // check if the fd is valid
 
 private:
