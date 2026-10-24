@@ -36,7 +36,7 @@ void send_all_impl(int fd, const std::byte* data, std::size_t size,
             throw std::runtime_error("send made no progress");
         }
 
-        // n < 0, record errno:
+        // if n < 0, record errno:
         const int error = errno;
         if (error == EINTR) {  // interrupted by signal, retry
             continue;
