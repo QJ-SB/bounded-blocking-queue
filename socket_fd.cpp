@@ -21,7 +21,7 @@ SocketFd& SocketFd::operator=(SocketFd&& other) noexcept {
     }
 
     if (fd_ != -1) {
-        (void)::close(fd_);  // currently ignore possible error
+        (void)::close(fd_);  // currently ignore possible error of close()
     }
 
     // Move the fd & Reset the other fd:
