@@ -201,6 +201,30 @@ target_link_libraries(
     sanitizers
 )
 
+# receive_once (Header-only):
+add_library(
+    receive_once
+    INTERFACE
+)
+
+target_include_directories(
+    receive_once
+    INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_features(
+    receive_once
+    INTERFACE
+    cxx_std_17
+)
+
+target_link_libraries(
+    receive_once
+    INTERFACE
+    sanitizers
+)
+
 # ==============================================================================
 # Main executable
 # ==============================================================================
@@ -331,6 +355,20 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # send_all:
+    add_executable(
+        send_all_tests
+        tests/send_all_test.cpp
+    )
+
+    target_link_libraries(
+        send_all_tests
+        PRIVATE
+        send_all
+        socket_fd
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -350,5 +388,11 @@ if(BUILD_TESTING)
     gtest_discover_tests(frame_parser_tests)
 
     gtest_discover_tests(socket_fd_tests)
+
+    gtest_discover_tests(
+    send_all_tests
+    PROPERTIES
+    TIMEOUT 5
+    )
 
 endif()
