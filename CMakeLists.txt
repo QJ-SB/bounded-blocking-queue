@@ -387,6 +387,25 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # TCP End-to-End Integration:
+    add_executable(
+        tcp_integration_tests
+        tests/tcp_integration_test.cpp
+        frame_encoder.cpp
+        frame_parser.cpp
+    )
+
+    target_link_libraries(
+        tcp_integration_tests
+        PRIVATE
+        binary_codec
+        trading_event_codec
+        socket_fd
+        send_all
+        receive_once
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -415,6 +434,12 @@ if(BUILD_TESTING)
 
     gtest_discover_tests(
     receive_once_tests
+    PROPERTIES
+    TIMEOUT 5
+    )
+
+    gtest_discover_tests(
+    tcp_integration_tests
     PROPERTIES
     TIMEOUT 5
     )
