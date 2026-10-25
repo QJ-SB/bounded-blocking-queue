@@ -18,9 +18,12 @@
 
 namespace {
 
-// ============================================================
+// ==================================================================
 // Test Helpers
-// ============================================================
+// ==================================================================
+
+// =========================== Mock/Fake ============================
+
 constexpr int kFakeFd = 123;
 
 std::array<std::byte, 10> sample_payload() {
@@ -36,7 +39,7 @@ struct SendStep {  // represents a scripted return
     int error = 0;
 };
 
-struct SendCall {  // represents a call to send
+struct SendCall {  // represents a call to send_all()
     int fd;
     const void* ptr;
     std::size_t length;
@@ -49,11 +52,8 @@ public:
         : script_(steps) {}
 
     ssize_t operator()(int fd, const void* ptr, std::size_t length, int flags) {
-        // Index of the next call:
-        const std::size_t index = calls.size();
-
-        // Check if the next call overflows:
-        if (index >= script_.size()) {
+        // Check if overflows scripted calls:
+        if (next_ >= script_.size()) {
             throw std::logic_error("Unexpected extra send operation");
         }
 
@@ -61,7 +61,7 @@ public:
         calls.push_back({fd, ptr, length, flags});
 
         // Return the scripted result:
-        const SendStep& step = script_[index];
+        const SendStep& step = script_[next_++];
 
         if (step.result == -1) {
             errno = step.error;
@@ -74,7 +74,11 @@ public:
 
 private:
     std::vector<SendStep> script_;  // scripted return values
+    std::size_t next_ = 0;          // index of the next call
 };
+
+
+// ================= GoogleTest assertion helper ====================
 
 void expect_call(const SendCall& call, int expected_fd,
                  const std::byte* expected_ptr,
@@ -85,6 +89,9 @@ void expect_call(const SendCall& call, int expected_fd,
     EXPECT_EQ(call.length, expected_length);
     EXPECT_EQ(call.flags, MSG_NOSIGNAL);
 }
+
+
+// ================== Real sockets test helper ======================
 
 std::array<SocketFd, 2> make_socket_pair() {  // makes a real socket pair
     int fds[2] = {-1, -1};
@@ -105,6 +112,7 @@ std::array<SocketFd, 2> make_socket_pair() {  // makes a real socket pair
 // ============================================================
 // Group A — Fake Sends
 // ============================================================
+
 TEST(SendAllTest, AcceptsEmptyBuffer) {  // Zero-byte Send = No-op
     // Arrange:
     ScriptedSend fake{{10, 0}};
@@ -246,6 +254,7 @@ TEST(SendAllTest, ReportsFailureAfterPartialProgress) {
 // ============================================================
 // Group B — Real Sockets
 // ============================================================
+
 TEST(SendAllTest, SendsBytesThroughSocketPair) {
     // Arrange:
     auto sockets = make_socket_pair();
