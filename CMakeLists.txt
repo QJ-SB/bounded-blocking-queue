@@ -369,6 +369,24 @@ if(BUILD_TESTING)
         GTest::gtest_main
     )
 
+    # receive_once:
+    add_executable(
+        receive_once_tests
+        tests/receive_once_test.cpp
+        frame_parser.cpp
+        frame_encoder.cpp
+    )
+
+    target_link_libraries(
+        receive_once_tests
+        PRIVATE
+        receive_once
+        send_all
+        socket_fd
+        binary_codec
+        GTest::gtest_main
+    )
+
 
     # Register gtest with ctest:
     include(GoogleTest)
@@ -391,6 +409,12 @@ if(BUILD_TESTING)
 
     gtest_discover_tests(
     send_all_tests
+    PROPERTIES
+    TIMEOUT 5
+    )
+
+    gtest_discover_tests(
+    receive_once_tests
     PROPERTIES
     TIMEOUT 5
     )
