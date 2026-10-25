@@ -29,11 +29,13 @@ int main() {
     bool producer_success{true};     // Whether all intended pushes succeeded.
 
 
-    // Start time measurement:
+    // ================================================================
+    // Start Time Measurement
+    // ================================================================
     auto t_start = std::chrono::steady_clock::now();
 
 
-    // Consumer thread:
+    // ================= Consumer thread:
     std::thread consumer{[&queue, &consumer_result] {
         while (true) {
             auto item = queue.pop();
@@ -48,7 +50,7 @@ int main() {
         }
     }};
 
-    // Producer thread:
+    // ================= Producer thread:
     std::thread producer{[&queue, &producer_success] {
         for (std::uint64_t sequence = 0; sequence < kEventCount; ++sequence) {
             TradingEvent event{sequence, static_cast<int>(sequence + 1)};
@@ -62,7 +64,7 @@ int main() {
         }
     }};
 
-    // Lifecycle coordination:
+    // ** Lifecycle coordination ** //
     producer.join();  // No future production is possible after this point.
 
     if (!producer_success) {
@@ -77,12 +79,15 @@ int main() {
     // Transition from production to closed/draining.
     queue.close();
 
-    // Wait until the consumer has drained the queue and terminated.
+    // ** Wait until the consumer has drained the queue and terminated ** //
     consumer.join();
 
 
-    // End time measurement:
+    // ================================================================
+    // End Time Measurement
+    // ================================================================
     auto t_end = std::chrono::steady_clock::now();
+
 
     // Calculate measurement result:
     const std::chrono::duration<double> elapsed = t_end - t_start;
