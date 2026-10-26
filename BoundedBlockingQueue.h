@@ -16,30 +16,29 @@ public:
         }
     }
 
-    // false => queue has been closed
-    bool push(T item);
+    bool push(T item);  // false => queue has been closed
 
-    // nullopt => queue is "closed && empty"
-    std::optional<T> pop();
+    std::optional<T> pop();  // nullopt => queue is "closed && empty"
 
     void close();
 
 private:
-    std::queue<T> buffer_;
+    std::queue<T> buffer_;  // container
     const std::size_t capacity_;
 
-    bool closed_{false};
+    bool closed_{false};  // status flag
 
-    std::mutex mutex_;
+    std::mutex mutex_;  // lock
 
     // Consumers wait here for:
-    // !buffer_.empty() || closed_
+    // (!buffer_.empty() || closed_)
     std::condition_variable not_empty_cv_;
 
     // Producers wait here for:
-    // buffer_.size() < capacity_ || closed_
+    // (buffer_.size() < capacity_ || closed_)
     std::condition_variable not_full_cv_;
 };
+
 
 template <typename T> bool BoundedBlockingQueue<T>::push(T item) {
     std::unique_lock<std::mutex> lock(mutex_);  // need flexible
@@ -86,7 +85,7 @@ template <typename T> void BoundedBlockingQueue<T>::close() {
         closed_ = true;
     }
 
-    // wake up all threads
+    // Wake up all threads:
     not_full_cv_.notify_all();
     not_empty_cv_.notify_all();
 }
