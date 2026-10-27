@@ -40,6 +40,7 @@ private:
 };
 
 
+// Producer:
 template <typename T> bool BoundedBlockingQueue<T>::push(T item) {
     std::unique_lock<std::mutex> lock(mutex_);  // need flexible
 
@@ -57,6 +58,7 @@ template <typename T> bool BoundedBlockingQueue<T>::push(T item) {
     return true;
 }
 
+// Consumer:
 template <typename T> std::optional<T> BoundedBlockingQueue<T>::pop() {
     std::unique_lock<std::mutex> lock(mutex_);  // need flexible
 

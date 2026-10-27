@@ -27,7 +27,7 @@ FeedResult FrameParser::feed(const std::byte* data, std::size_t size) {
             break;
         }
 
-        // Decode prefix and validate the payload length:
+        // Decode prefix & Validate the payload length:
         std::size_t offset = 0;
         auto payload_length = read_u32(pending_bytes_, offset);
         if (payload_length < frame_protocol::kMinPayloadSize ||
