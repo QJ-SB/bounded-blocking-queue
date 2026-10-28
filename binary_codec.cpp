@@ -49,7 +49,7 @@ std::uint32_t read_u32(const std::vector<std::byte>& buffer,
 
     // Validate - Overflow / Insufficient (Short-circuit Evaluation):
     if (offset > buffer.size() || (buffer.size() - offset) < needed) {
-        throw std::out_of_range("Insufficient bytes");
+        throw std::out_of_range("Insufficient bytes to read");
     }
 
     // Memcpy bytes (uint32_t) & Update offset (post-increment):
@@ -68,7 +68,7 @@ std::uint16_t read_u16(const std::vector<std::byte>& buffer,
 
     // Validate - Overflow / Insufficient (Short-circuit Evaluation):
     if (offset > buffer.size() || (buffer.size() - offset) < needed) {
-        throw std::out_of_range("Insufficient Bytes");
+        throw std::out_of_range("Insufficient Bytes to read");
     }
 
     // Memcpy bytes (uint16_t) & Update offset (post-increment):

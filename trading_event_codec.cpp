@@ -17,7 +17,7 @@ std::vector<std::byte> encode_trading_event(const TradingEventMessage& event) {
 
     // check symbol_length:
     if (event.symbol.size() > std::numeric_limits<std::uint16_t>::max()) {
-        throw std::length_error("symbol is too long");
+        throw std::length_error("Symbol is too long");
     }
 
     // append fixed payload:
@@ -56,7 +56,7 @@ decode_trading_event(const std::vector<std::byte>& payload) {
 
     // Check symbol_length:
     if (payload.size() - offset != symbol_length) {
-        throw std::out_of_range("mismatched symbol_length");
+        throw std::out_of_range("Mismatched symbol_length");
     }
 
     // Read symbol:
