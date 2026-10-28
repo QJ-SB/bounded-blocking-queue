@@ -14,5 +14,5 @@ struct TradingEventMessage {
     std::uint32_t type;
     std::uint32_t price_ticks;
     std::uint32_t quantity;
-    std::string symbol;
+    std::string symbol;  // ...[symbol_length][symbol]
 };
