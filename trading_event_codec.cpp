@@ -51,7 +51,7 @@ decode_trading_event(const std::vector<std::byte>& payload) {
     event.price_ticks = read_u32(payload, offset);
     event.quantity = read_u32(payload, offset);
 
-    // Read variable symbol_length:
+    // Read variable symbol_length (not in TradingEventMessage:
     symbol_length = read_u16(payload, offset);
 
     // Validate symbol_length:
@@ -60,7 +60,7 @@ decode_trading_event(const std::vector<std::byte>& payload) {
     }
 
     // Read symbol:
-    event.symbol.resize(symbol_length);
+    event.symbol.resize(symbol_length);  // resize std::string for symbol
     if (symbol_length != 0) {
         std::memcpy(event.symbol.data(), payload.data() + offset,
                     symbol_length);
