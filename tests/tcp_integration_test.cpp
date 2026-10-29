@@ -2,18 +2,23 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <netinet/in.h>
+#include <optional>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
+#include "BoundedBlockingQueue.h"
 #include "TradingEvent.h"
 #include "frame_encoder.h"
+#include "ingest_connection.h"
 #include "receive_once.h"
 #include "send_all.h"
 #include "socket_fd.h"
@@ -196,9 +201,9 @@ TEST(TcpIntegrationTest, TransfersMultipleTradingEvents) {
     EXPECT_NE(::fcntl(sockets.accepted.get(), F_GETFD), -1);
 }
 
-// =============================================================
+// ================================================================
 // TCP Failure Path #1 — Partial frame followed by orderly EOF
-// =============================================================
+// ================================================================
 
 TEST(TcpIntegrationTest, ReportsTruncatedFrameAtEOF) {
     // ARRANGE: a real connected IPv4/TCP pair.
@@ -243,9 +248,9 @@ TEST(TcpIntegrationTest, ReportsTruncatedFrameAtEOF) {
     EXPECT_NE(::fcntl(sockets.accepted.get(), F_GETFD), -1);
 }
 
-// =================================================================
+// ================================================================
 // TCP Failure Path #2 — Deliver valid events before a framing error
-// =================================================================
+// ================================================================
 
 TEST(TcpIntegrationTest, PreservesEventsBeforeFramingFailure) {
     // ARRANGE: [valid A frame][invalid zero-length frame prefix].
@@ -350,14 +355,14 @@ TEST(TcpIntegrationTest, TestLoopStopsDeliveringAfterTradingEventDecodeError) {
                 delivered.push_back(decode_trading_event(payload));
             } catch (const std::out_of_range& error) {
                 // Specific semantic error, not a transport/framing failure.
-                EXPECT_STREQ(error.what(), "mismatched symbol_length");
+                EXPECT_STREQ(error.what(), "Mismatched symbol_length");
                 saw_symbol_length_mismatch = true;
                 break;
             }
         }
 
         // Fail-fast per connection:
-        // （do NOT process C, and do NOT call recv again）
+        // (do NOT process C, and do NOT call recv again)
         if (saw_symbol_length_mismatch) {
             break;
         }
@@ -368,4 +373,162 @@ TEST(TcpIntegrationTest, TestLoopStopsDeliveringAfterTradingEventDecodeError) {
     expect_event_equals(delivered[0], event_a);
     EXPECT_TRUE(sockets.accepted.valid());
     EXPECT_NE(::fcntl(sockets.accepted.get(), F_GETFD), -1);
+}
+
+
+// ================================================================
+// Network-to-Queue: minimal two-worker orchestration for tests.
+// ================================================================
+
+namespace {
+
+struct PipelineRun {
+    IngestResult outcome;
+    std::vector<TradingEventMessage> consumed;
+};
+
+PipelineRun run_pipeline(int accepted_fd,
+                         BoundedBlockingQueue<TradingEventMessage>& queue) {
+    std::optional<IngestResult> receiver_result;
+    std::exception_ptr receiver_exception;
+    std::exception_ptr consumer_exception;
+    std::vector<TradingEventMessage> consumed;
+
+    std::thread consumer([&] {
+        try {
+            while (auto event = queue.pop()) {
+                consumed.push_back(std::move(*event));
+            }
+        } catch (...) {
+            consumer_exception = std::current_exception();
+            queue.close();  // Wake the producer if blocked in push().
+        }
+    });
+
+    std::thread receiver;
+    try {
+        receiver = std::thread([&] {
+            try {
+                receiver_result = ingest_connection(accepted_fd, queue);
+            } catch (...) {
+                receiver_exception = std::current_exception();
+                queue.close();  // Wake the consumer if blocked in pop().
+            }
+        });
+    } catch (...) {
+        // std::thread construction might throw; never destroy a joinable
+        // consumer thread while unwinding the test stack.
+        queue.close();
+        consumer.join();
+        throw;
+    }
+
+    receiver.join();
+    consumer.join();
+
+    // No ASSERT_* in the orchestrator before both threads have joined.
+    if (receiver_exception) {
+        std::rethrow_exception(receiver_exception);
+    }
+    if (consumer_exception) {
+        std::rethrow_exception(consumer_exception);
+    }
+    if (!receiver_result) {
+        throw std::logic_error("receiver produced no outcome");
+    }
+
+    return PipelineRun{std::move(*receiver_result), std::move(consumed)};
+}
+
+}  // namespace
+
+TEST(NetworkToQueueTest, IngestsTradingEventsThroughBoundedQueue) {
+    auto sockets = make_tcp_loopback_connection();
+    set_socket_timeouts(sockets.client.get());
+    set_socket_timeouts(sockets.accepted.get());
+
+    const std::vector<TradingEventMessage> expected{
+        {1u, 100250u, 12u, "AAPL"},
+        {2u, 98765u, 7u, "MSFT"},
+        {3u, 314159u, 1u, ""},
+    };
+    for (const auto& event : expected) {
+        const auto wire = encode_frame(encode_trading_event(event));
+        send_all(sockets.client.get(), wire.data(), wire.size());
+    }
+    ASSERT_EQ(::shutdown(sockets.client.get(), SHUT_WR), 0);
+
+    BoundedBlockingQueue<TradingEventMessage> queue{1};
+    PipelineRun run = run_pipeline(sockets.accepted.get(), queue);
+
+    EXPECT_EQ(run.outcome.status, IngestStatus::CleanEOF);
+    EXPECT_FALSE(run.outcome.frame_error);
+    EXPECT_FALSE(run.outcome.transport_error);
+    ASSERT_EQ(run.consumed.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        SCOPED_TRACE(i);
+        expect_event_equals(run.consumed[i], expected[i]);
+    }
+    EXPECT_FALSE(queue.push({4u, 1u, 1u, "LATE"}));
+    EXPECT_FALSE(queue.pop().has_value());
+}
+
+TEST(NetworkToQueueTest, DrainsAcceptedEventsAfterFramingError) {
+    auto sockets = make_tcp_loopback_connection();
+    set_socket_timeouts(sockets.client.get());
+    set_socket_timeouts(sockets.accepted.get());
+
+    const TradingEventMessage event_a{1u, 100250u, 12u, "AAPL"};
+    std::vector<std::byte> wire = encode_frame(encode_trading_event(event_a));
+    wire.insert(wire.end(), 4, std::byte{0x00});  // invalid frame length
+    send_all(sockets.client.get(), wire.data(), wire.size());
+    ASSERT_EQ(::shutdown(sockets.client.get(), SHUT_WR), 0);
+
+    // Run the producer first with capacity 1 and precisely one valid event.
+    // Only after the producer closes the queue do we drain it: this makes
+    // the post-close drain property deterministic rather than timing-based.
+    BoundedBlockingQueue<TradingEventMessage> queue{1};
+    const IngestResult result =
+        ingest_connection(sockets.accepted.get(), queue);
+    ASSERT_EQ(result.status, IngestStatus::FramingError);
+    ASSERT_TRUE(result.frame_error);
+    EXPECT_EQ(*result.frame_error, FrameError::InvalidLength);
+
+    auto first = queue.pop();
+    ASSERT_TRUE(first);
+    expect_event_equals(*first, event_a);
+    EXPECT_FALSE(queue.pop());
+}
+
+TEST(NetworkToQueueTest, StopsIngestionAfterDecodeError) {
+    auto sockets = make_tcp_loopback_connection();
+    set_socket_timeouts(sockets.client.get());
+    set_socket_timeouts(sockets.accepted.get());
+
+    const TradingEventMessage a{1u, 100250u, 12u, "AAPL"};
+    const TradingEventMessage b{2u, 98765u, 7u, "BAD"};
+    const TradingEventMessage c{3u, 314159u, 1u, "MSFT"};
+    auto bad_payload = encode_trading_event(b);
+    // 12 = 4(type) + 4(price_ticks) + 4(quantity), next 2 bytes = length.
+    ASSERT_EQ(bad_payload.size(), 17u);
+    bad_payload[12] = std::byte{0};
+    bad_payload[13] = std::byte{4};  // claims 4 symbol bytes; has only 3
+
+    std::vector<std::byte> wire = encode_frame(encode_trading_event(a));
+    const auto bad_frame = encode_frame(bad_payload);
+    const auto frame_c = encode_frame(encode_trading_event(c));
+    wire.insert(wire.end(), bad_frame.begin(), bad_frame.end());
+    wire.insert(wire.end(), frame_c.begin(), frame_c.end());
+    send_all(sockets.client.get(), wire.data(), wire.size());
+    ASSERT_EQ(::shutdown(sockets.client.get(), SHUT_WR), 0);
+
+    BoundedBlockingQueue<TradingEventMessage> queue{1};
+    PipelineRun run = run_pipeline(sockets.accepted.get(), queue);
+
+    EXPECT_EQ(run.outcome.status, IngestStatus::MessageDecodeError);
+    EXPECT_FALSE(run.outcome.frame_error);
+    EXPECT_FALSE(run.outcome.transport_error);
+    ASSERT_EQ(run.consumed.size(), 1u);
+    expect_event_equals(run.consumed[0], a);
+    EXPECT_FALSE(queue.pop());  // Closed and drained, so no C.
 }
