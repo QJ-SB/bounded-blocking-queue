@@ -225,6 +225,14 @@ target_link_libraries(
     sanitizers
 )
 
+
+# ==============================================================================
+# Thread support
+# ==============================================================================
+
+find_package(Threads REQUIRED)
+
+
 # ==============================================================================
 # Main executable
 # ==============================================================================
@@ -238,6 +246,7 @@ target_link_libraries(
     events_pipeline
     PRIVATE
     bounded_blocking_queue
+    Threads::Threads
 )
 
 
@@ -284,6 +293,7 @@ if(BUILD_TESTING)
         bounded_blocking_queue_tests
         PRIVATE
         bounded_blocking_queue
+        Threads::Threads
         GTest::gtest_main
     )
     
@@ -388,9 +398,10 @@ if(BUILD_TESTING)
     )
 
     # TCP End-to-End Integration:
-    add_executable(
+        add_executable(
         tcp_integration_tests
         tests/tcp_integration_test.cpp
+        ingest_connection.cpp
         frame_encoder.cpp
         frame_parser.cpp
     )
@@ -398,11 +409,13 @@ if(BUILD_TESTING)
     target_link_libraries(
         tcp_integration_tests
         PRIVATE
+        bounded_blocking_queue
         binary_codec
         trading_event_codec
         socket_fd
         send_all
         receive_once
+        Threads::Threads
         GTest::gtest_main
     )
 
